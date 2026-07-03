@@ -1,0 +1,11 @@
+#pragma once
+
+#define BLE_DEVICE_NAME "KeyboardBridge"
+
+#define BLE_KEYBOARD_SERVICE_UUID "7f2b4c00-7b64-4c0d-9b7a-1e0f3c9a0001"
+#define BLE_KEYBOARD_REPORT_CHAR_UUID "7f2b4c01-7b64-4c0d-9b7a-1e0f3c9a0001"
+
+#define KEYBOARD_REPORT_SIZE 8
+#define KEY_RELEASE_TIMEOUT_MS 3000UL
+
+#define BRIDGE_DEBUG_LOG 1
