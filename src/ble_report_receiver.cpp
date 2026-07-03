@@ -8,6 +8,22 @@
 
 static BleReportReceiver* activeReceiver = nullptr;
 
+#if BRIDGE_DEBUG_LOG
+static void printReportHex(const uint8_t* data, size_t length) {
+  Serial.print("[ble] report bytes=");
+  for (size_t i = 0; i < length; ++i) {
+    if (i > 0) {
+      Serial.print(' ');
+    }
+    if (data[i] < 0x10) {
+      Serial.print('0');
+    }
+    Serial.print(data[i], HEX);
+  }
+  Serial.println();
+}
+#endif
+
 class BridgeServerCallbacks : public BLEServerCallbacks {
  public:
   void onConnect(BLEServer* server) override {
@@ -122,6 +138,6 @@ void BleReportReceiver::receiveReport(const uint8_t* data, size_t length) {
   interrupts();
 
 #if BRIDGE_DEBUG_LOG
-  Serial.println("[ble] report received");
+  printReportHex(data, length);
 #endif
 }

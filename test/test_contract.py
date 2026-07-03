@@ -67,6 +67,14 @@ def test_ble_report_receiver_exposes_custom_gatt_write_endpoint():
     assert "isValidKeyboardReportLength" in source
 
 
+def test_ble_report_receiver_logs_received_report_bytes_for_debugging():
+    source = read("src/ble_report_receiver.cpp")
+
+    assert "printReportHex" in source
+    assert 'Serial.print("[ble] report bytes=")' in source
+    assert "if (data[i] < 0x10)" in source
+
+
 def test_firmware_uses_ble_receiver_and_usb_output_layers():
     main = read("src/main.cpp")
 
