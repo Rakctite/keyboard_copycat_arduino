@@ -13,14 +13,27 @@ static void sendReleaseForSafety(const char* reason) {
   Serial.print("[safety] releaseAll reason=");
   Serial.println(reason);
 #endif
+#if USB_KEYBOARD_OUTPUT_ENABLED
   usbOutput.releaseAll();
+#else
+  (void)reason;
+#if BRIDGE_DEBUG_LOG
+  Serial.println("[usb] output disabled; release skipped");
+#endif
+#endif
 }
 
 void setup() {
   Serial.begin(115200);
   delay(500);
 
+#if USB_KEYBOARD_OUTPUT_ENABLED
   usbOutput.begin();
+#else
+#if BRIDGE_DEBUG_LOG
+  Serial.println("[usb] output disabled by config");
+#endif
+#endif
   bleReceiver.begin();
 
   timeoutReleaseSent = true;
@@ -33,7 +46,13 @@ void loop() {
   uint8_t report[KEYBOARD_REPORT_SIZE];
 
   if (bleReceiver.takeReport(report)) {
+#if USB_KEYBOARD_OUTPUT_ENABLED
     usbOutput.sendReport(report);
+#else
+#if BRIDGE_DEBUG_LOG
+    Serial.println("[usb] output disabled; report not sent");
+#endif
+#endif
     timeoutReleaseSent = isReleaseReport(report);
   }
 

@@ -16,6 +16,7 @@ def test_bridge_config_documents_ble_and_report_contract():
     assert "BLE_KEYBOARD_REPORT_CHAR_UUID" in config
     assert "KEYBOARD_REPORT_SIZE 8" in config
     assert "KEY_RELEASE_TIMEOUT_MS 3000UL" in config
+    assert "USB_KEYBOARD_OUTPUT_ENABLED" in config
     assert "BRIDGE_DEBUG_LOG 1" in config
 
 
@@ -84,6 +85,7 @@ def test_firmware_uses_ble_receiver_and_usb_output_layers():
     assert "UsbKeyboardOutput usbOutput;" in main
     assert "KEY_RELEASE_TIMEOUT_MS" in main
     assert "releaseAll" in main
+    assert "USB_KEYBOARD_OUTPUT_ENABLED" in main
 
 
 def test_no_legacy_network_or_modbus_dependencies_in_active_firmware():
