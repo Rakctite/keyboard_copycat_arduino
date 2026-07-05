@@ -70,7 +70,7 @@ void BleReportReceiver::begin() {
   BLEService* service = server->createService(BLE_KEYBOARD_SERVICE_UUID);
   BLECharacteristic* reportCharacteristic = service->createCharacteristic(
       BLE_KEYBOARD_REPORT_CHAR_UUID,
-      BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR);
+      BLECharacteristic::PROPERTY_WRITE);
   reportCharacteristic->setCallbacks(new ReportCharacteristicCallbacks());
   reportCharacteristic->addDescriptor(new BLE2902());
 
