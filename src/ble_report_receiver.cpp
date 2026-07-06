@@ -60,7 +60,9 @@ class ReportCharacteristicCallbacks : public NimBLECharacteristicCallbacks {
 void BleReportReceiver::begin() {
   activeReceiver = this;
   NimBLEDevice::init(BLE_DEVICE_NAME);
+  NimBLEDevice::setDeviceName(BLE_DEVICE_NAME);
   NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+  NimBLEDevice::setMTU(64);
 
   NimBLEServer* server = NimBLEDevice::createServer();
   server->setCallbacks(new BridgeServerCallbacks());
@@ -75,7 +77,11 @@ void BleReportReceiver::begin() {
 
   NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
   advertising->addServiceUUID(BLE_KEYBOARD_SERVICE_UUID);
+  advertising->setName(BLE_DEVICE_NAME);
+  advertising->setAppearance(0x03C1);
   advertising->setScanResponse(true);
+  advertising->setMinPreferred(0x06);
+  advertising->setMaxPreferred(0x12);
   advertising->start();
 
 #if BRIDGE_DEBUG_LOG
