@@ -14,7 +14,9 @@ class BleReportReceiver {
 
  private:
   friend class BridgeServerCallbacks;
+  friend class BridgeClientCallbacks;
   friend class ReportCharacteristicCallbacks;
+  friend void receiveActiveBleReport(const uint8_t* data, size_t length);
 
   void setConnected(bool connected);
   void receiveReport(const uint8_t* data, size_t length);

@@ -4,6 +4,9 @@
 #include "config.h"
 
 static BleReportReceiver* activeReceiver = nullptr;
+static NimBLEClient* client = nullptr;
+static uint32_t lastConnectAttemptMs = 0;
+static const uint32_t CONNECT_RETRY_INTERVAL_MS = 2000;
 
 #if BRIDGE_DEBUG_LOG
 static void printReportHex(const uint8_t* data, size_t length) {
@@ -21,76 +24,151 @@ static void printReportHex(const uint8_t* data, size_t length) {
 }
 #endif
 
-class BridgeServerCallbacks : public NimBLEServerCallbacks {
+void receiveActiveBleReport(const uint8_t* data, size_t length) {
+  if (activeReceiver != nullptr) {
+    activeReceiver->receiveReport(data, length);
+  }
+}
+
+static void notifyCallback(
+    NimBLERemoteCharacteristic* characteristic,
+    uint8_t* data,
+    size_t length,
+    bool isNotify) {
+  (void)characteristic;
+  (void)isNotify;
+  receiveActiveBleReport(data, length);
+}
+
+class BridgeClientCallbacks : public NimBLEClientCallbacks {
  public:
-  void onConnect(NimBLEServer* server) override {
-    (void)server;
+  void onConnect(NimBLEClient* connectedClient) override {
+    (void)connectedClient;
     if (activeReceiver != nullptr) {
       activeReceiver->setConnected(true);
     }
 #if BRIDGE_DEBUG_LOG
-    Serial.println("[ble] connected");
+    Serial.println("[ble] connected to Windows sender");
 #endif
   }
 
-  void onDisconnect(NimBLEServer* server) override {
+  void onDisconnect(NimBLEClient* disconnectedClient) override {
+    (void)disconnectedClient;
     if (activeReceiver != nullptr) {
       activeReceiver->setConnected(false);
     }
-    NimBLEDevice::startAdvertising();
 #if BRIDGE_DEBUG_LOG
-    Serial.println("[ble] disconnected; advertising restarted");
+    Serial.println("[ble] disconnected from Windows sender");
 #endif
   }
 };
 
-class ReportCharacteristicCallbacks : public NimBLECharacteristicCallbacks {
- public:
-  void onWrite(NimBLECharacteristic* characteristic) override {
-    if (activeReceiver == nullptr) {
-      return;
+static NimBLEAdvertisedDevice* findKeyboardBridge() {
+  NimBLEScan* scan = NimBLEDevice::getScan();
+  scan->setActiveScan(true);
+  scan->setInterval(45);
+  scan->setWindow(15);
+  scan->setMaxResults(10);
+
+#if BRIDGE_DEBUG_LOG
+  Serial.println("[ble] scanning for Windows sender");
+#endif
+
+  NimBLEScanResults results = scan->start(3, false);
+  for (int i = 0; i < results.getCount(); ++i) {
+    NimBLEAdvertisedDevice device = results.getDevice(i);
+    const bool serviceMatch = device.isAdvertisingService(NimBLEUUID(BLE_KEYBOARD_SERVICE_UUID));
+    const bool nameMatch = device.getName() == BLE_DEVICE_NAME;
+    if (serviceMatch || nameMatch) {
+#if BRIDGE_DEBUG_LOG
+      Serial.print("[ble] found sender name=");
+      Serial.print(device.getName().c_str());
+      Serial.print(" address=");
+      Serial.println(device.getAddress().toString().c_str());
+#endif
+      return new NimBLEAdvertisedDevice(device);
     }
-    std::string value = characteristic->getValue();
-    activeReceiver->receiveReport(
-        reinterpret_cast<const uint8_t*>(value.data()),
-        value.size());
   }
-};
+
+  scan->clearResults();
+  return nullptr;
+}
+
+static bool connectAndSubscribe(NimBLEAdvertisedDevice* advertisedDevice) {
+  if (client == nullptr) {
+    client = NimBLEDevice::createClient();
+    client->setClientCallbacks(new BridgeClientCallbacks(), true);
+    client->setConnectTimeout(5);
+    client->setConnectionParams(6, 12, 0, 100);
+  }
+
+  if (client->isConnected()) {
+    return true;
+  }
+
+  if (!client->connect(advertisedDevice)) {
+#if BRIDGE_DEBUG_LOG
+    Serial.println("[ble] connect failed");
+#endif
+    return false;
+  }
+
+  NimBLERemoteService* service = client->getService(BLE_KEYBOARD_SERVICE_UUID);
+  if (service == nullptr) {
+#if BRIDGE_DEBUG_LOG
+    Serial.println("[ble] service not found on Windows sender");
+#endif
+    client->disconnect();
+    return false;
+  }
+
+  NimBLERemoteCharacteristic* characteristic =
+      service->getCharacteristic(BLE_KEYBOARD_REPORT_CHAR_UUID);
+  if (characteristic == nullptr) {
+#if BRIDGE_DEBUG_LOG
+    Serial.println("[ble] report characteristic not found on Windows sender");
+#endif
+    client->disconnect();
+    return false;
+  }
+
+  if (!characteristic->subscribe(true, notifyCallback, true)) {
+#if BRIDGE_DEBUG_LOG
+    Serial.println("[ble] subscribe failed");
+#endif
+    client->disconnect();
+    return false;
+  }
+
+#if BRIDGE_DEBUG_LOG
+  Serial.println("[ble] subscribed to keyboard reports");
+#endif
+  return true;
+}
 
 void BleReportReceiver::begin() {
   activeReceiver = this;
-  NimBLEDevice::init(BLE_DEVICE_NAME);
-  NimBLEDevice::setDeviceName(BLE_DEVICE_NAME);
+  NimBLEDevice::init("KeyboardBridgeArduino");
   NimBLEDevice::setPower(ESP_PWR_LVL_P9);
   NimBLEDevice::setMTU(64);
-
-  NimBLEServer* server = NimBLEDevice::createServer();
-  server->setCallbacks(new BridgeServerCallbacks());
-
-  NimBLEService* service = server->createService(BLE_KEYBOARD_SERVICE_UUID);
-  NimBLECharacteristic* reportCharacteristic = service->createCharacteristic(
-      BLE_KEYBOARD_REPORT_CHAR_UUID,
-      NIMBLE_PROPERTY::WRITE);
-  reportCharacteristic->setCallbacks(new ReportCharacteristicCallbacks());
-
-  service->start();
-
-  NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
-  advertising->addServiceUUID(BLE_KEYBOARD_SERVICE_UUID);
-  advertising->setName(BLE_DEVICE_NAME);
-  advertising->setAppearance(0x03C1);
-  advertising->setScanResponse(true);
-  advertising->setMinPreferred(0x06);
-  advertising->setMaxPreferred(0x12);
-  advertising->start();
-
 #if BRIDGE_DEBUG_LOG
-  Serial.print("[ble] advertising as ");
-  Serial.println(BLE_DEVICE_NAME);
+  Serial.println("[ble] client mode ready");
 #endif
 }
 
 bool BleReportReceiver::takeReport(uint8_t report[KEYBOARD_REPORT_SIZE]) {
+  if (client == nullptr || !client->isConnected()) {
+    const uint32_t now = millis();
+    if (now - lastConnectAttemptMs >= CONNECT_RETRY_INTERVAL_MS) {
+      lastConnectAttemptMs = now;
+      NimBLEAdvertisedDevice* device = findKeyboardBridge();
+      if (device != nullptr) {
+        connectAndSubscribe(device);
+        delete device;
+      }
+    }
+  }
+
   if (!reportReady_) {
     return false;
   }

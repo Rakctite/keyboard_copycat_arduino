@@ -66,12 +66,11 @@ def test_ble_report_receiver_exposes_custom_gatt_write_endpoint():
     assert "#include <BLEDevice.h>" not in source
     assert "BLE_KEYBOARD_SERVICE_UUID" in source
     assert "BLE_KEYBOARD_REPORT_CHAR_UUID" in source
-    assert "NIMBLE_PROPERTY::WRITE" in source
-    assert "setDeviceName" in source
-    assert "setMinPreferred" in source
-    assert "setMaxPreferred" in source
-    assert "setAppearance" in source
-    assert "PROPERTY_WRITE_NR" not in source
+    assert "NimBLEScan" in source
+    assert "NimBLEClient" in source
+    assert "subscribe" in source
+    assert "notifyCallback" in source
+    assert "NIMBLE_PROPERTY::WRITE" not in source
     assert "isValidKeyboardReportLength" in source
 
 
