@@ -56,14 +56,17 @@ def test_usb_keyboard_output_wraps_usb_hid_keyboard():
 def test_ble_report_receiver_exposes_custom_gatt_write_endpoint():
     header = read("src/ble_report_receiver.h")
     source = read("src/ble_report_receiver.cpp")
+    platformio = read("platformio.ini")
 
     assert "class BleReportReceiver" in header
     assert "bool takeReport" in header
     assert "bool isConnected" in header
-    assert "#include <BLEDevice.h>" in source
+    assert "#include <NimBLEDevice.h>" in source
+    assert "h2zero/NimBLE-Arduino" in platformio
+    assert "#include <BLEDevice.h>" not in source
     assert "BLE_KEYBOARD_SERVICE_UUID" in source
     assert "BLE_KEYBOARD_REPORT_CHAR_UUID" in source
-    assert "PROPERTY_WRITE" in source
+    assert "NIMBLE_PROPERTY::WRITE" in source
     assert "PROPERTY_WRITE_NR" not in source
     assert "isValidKeyboardReportLength" in source
 

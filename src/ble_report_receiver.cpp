@@ -1,9 +1,6 @@
 #include "ble_report_receiver.h"
 
-#include <BLE2902.h>
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
+#include <NimBLEDevice.h>
 #include "config.h"
 
 static BleReportReceiver* activeReceiver = nullptr;
@@ -24,9 +21,9 @@ static void printReportHex(const uint8_t* data, size_t length) {
 }
 #endif
 
-class BridgeServerCallbacks : public BLEServerCallbacks {
+class BridgeServerCallbacks : public NimBLEServerCallbacks {
  public:
-  void onConnect(BLEServer* server) override {
+  void onConnect(NimBLEServer* server) override {
     (void)server;
     if (activeReceiver != nullptr) {
       activeReceiver->setConnected(true);
@@ -36,20 +33,20 @@ class BridgeServerCallbacks : public BLEServerCallbacks {
 #endif
   }
 
-  void onDisconnect(BLEServer* server) override {
+  void onDisconnect(NimBLEServer* server) override {
     if (activeReceiver != nullptr) {
       activeReceiver->setConnected(false);
     }
-    server->getAdvertising()->start();
+    NimBLEDevice::startAdvertising();
 #if BRIDGE_DEBUG_LOG
     Serial.println("[ble] disconnected; advertising restarted");
 #endif
   }
 };
 
-class ReportCharacteristicCallbacks : public BLECharacteristicCallbacks {
+class ReportCharacteristicCallbacks : public NimBLECharacteristicCallbacks {
  public:
-  void onWrite(BLECharacteristic* characteristic) override {
+  void onWrite(NimBLECharacteristic* characteristic) override {
     if (activeReceiver == nullptr) {
       return;
     }
@@ -62,21 +59,21 @@ class ReportCharacteristicCallbacks : public BLECharacteristicCallbacks {
 
 void BleReportReceiver::begin() {
   activeReceiver = this;
-  BLEDevice::init(BLE_DEVICE_NAME);
+  NimBLEDevice::init(BLE_DEVICE_NAME);
+  NimBLEDevice::setPower(ESP_PWR_LVL_P9);
 
-  BLEServer* server = BLEDevice::createServer();
+  NimBLEServer* server = NimBLEDevice::createServer();
   server->setCallbacks(new BridgeServerCallbacks());
 
-  BLEService* service = server->createService(BLE_KEYBOARD_SERVICE_UUID);
-  BLECharacteristic* reportCharacteristic = service->createCharacteristic(
+  NimBLEService* service = server->createService(BLE_KEYBOARD_SERVICE_UUID);
+  NimBLECharacteristic* reportCharacteristic = service->createCharacteristic(
       BLE_KEYBOARD_REPORT_CHAR_UUID,
-      BLECharacteristic::PROPERTY_WRITE);
+      NIMBLE_PROPERTY::WRITE);
   reportCharacteristic->setCallbacks(new ReportCharacteristicCallbacks());
-  reportCharacteristic->addDescriptor(new BLE2902());
 
   service->start();
 
-  BLEAdvertising* advertising = BLEDevice::getAdvertising();
+  NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
   advertising->addServiceUUID(BLE_KEYBOARD_SERVICE_UUID);
   advertising->setScanResponse(true);
   advertising->start();
